@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: civiceye-config
+  namespace: civiceye
+data:
+  eureka.url: "http://eureka-server:8761/eureka/"
+  mysql.host: "mysql"
+  mysql.port: "3306"
