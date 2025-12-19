@@ -28,7 +28,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
     setSubmitting(true);
 
     try {
-      const res = await fetch("http://13.204.65.29:5006/api/auth/login", {
+      const res = await fetch("http://localhost:3000/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),

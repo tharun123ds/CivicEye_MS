@@ -36,6 +36,9 @@ interface UserDashboardProps {
   onLogout: () => void;
 }
 
+// ✅ API Gateway base URL (FINAL & CORRECT)
+const GATEWAY_URL = "http://localhost:3000";
+
 export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [form, setForm] = useState({
@@ -48,16 +51,20 @@ export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [deletingIds, setDeletingIds] = useState<string[]>([]); // Track deleting issue IDs
+  const [deletingIds, setDeletingIds] = useState<string[]>([]);
 
+  // ================= FETCH USER ISSUES =================
   const fetchIssues = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const res = await fetch("http://13.204.65.29:5006/api/issues", {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`${GATEWAY_URL}/issues`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
       const data = await res.json();
 
       if (res.ok) {
@@ -76,6 +83,7 @@ export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
     fetchIssues();
   }, [fetchIssues]);
 
+  // ================= CREATE ISSUE =================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -89,18 +97,21 @@ export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
       formData.append("location", form.location);
       if (form.photo) formData.append("photo", form.photo);
 
-      const res = await fetch("http://13.204.65.29:5006/api/issues", {
+      const res = await fetch(`${GATEWAY_URL}/issues`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
       });
+
       const data = await res.json();
 
       if (res.ok) {
         setIssues((prev) => [data, ...prev]);
         setForm({ title: "", description: "", location: "", photo: null });
         setSuccess("Issue reported successfully!");
-        setTimeout(() => setSuccess(""), 5000);
+        setTimeout(() => setSuccess(""), 4000);
       } else {
         setError(data.message || "Failed to create issue");
       }
@@ -111,19 +122,22 @@ export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
     setSubmitting(false);
   };
 
+  // ================= DELETE ISSUE =================
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this issue?")) return;
 
     try {
       setDeletingIds((prev) => [...prev, id]);
 
-      const res = await fetch(`http://13.204.65.29:5006/api/issues/${id}`, {
+      const res = await fetch(`${GATEWAY_URL}/issues/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (res.ok) {
-        setIssues((prev) => prev.filter((issue) => issue._id !== id));
+        setIssues((prev) => prev.filter((i) => i._id !== id));
       } else {
         const data = await res.json();
         setError(data.message || "Failed to delete issue");
@@ -131,54 +145,51 @@ export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
     } catch {
       setError("Server error while deleting issue");
     } finally {
-      setDeletingIds((prev) => prev.filter((issueId) => issueId !== id));
+      setDeletingIds((prev) => prev.filter((i) => i !== id));
     }
   };
 
+  // ================= HELPERS =================
   const getStatusVariant = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case "resolved":
-        return "default";
-      case "pending":
-        return "secondary";
-      default:
-        return "outline";
-    }
+    if (status?.toLowerCase() === "resolved") return "default";
+    if (status?.toLowerCase() === "pending") return "secondary";
+    return "outline";
   };
 
-  // Separate issues into pending and resolved arrays
   const pendingIssues = issues.filter(
-    (issue) => issue.status?.toLowerCase() === "pending"
+    (i) => i.status?.toLowerCase() === "pending"
   );
   const resolvedIssues = issues.filter(
-    (issue) => issue.status?.toLowerCase() === "resolved"
+    (i) => i.status?.toLowerCase() === "resolved"
   );
 
-  const renderIssueCard = (issue: Issue) => (
-    <Card key={issue._id} className="overflow-hidden">
+  // ================= ISSUE CARD =================
+  const renderIssue = (issue: Issue) => (
+    <Card key={issue._id}>
       <CardHeader>
-        <div className="flex items-start justify-between">
-          <CardTitle className="text-lg">{issue.title}</CardTitle>
+        <div className="flex justify-between">
+          <CardTitle>{issue.title}</CardTitle>
           <Badge variant={getStatusVariant(issue.status)}>
             {issue.status || "Pending"}
           </Badge>
         </div>
         <div className="flex items-center text-sm text-muted-foreground">
-          <MapPin className="h-4 w-4 mr-1" />
+          <MapPin className="mr-1 h-4 w-4" />
           {issue.location}
         </div>
       </CardHeader>
+
       <CardContent className="space-y-4">
-        <p className="text-sm">{issue.description}</p>
+        <p>{issue.description}</p>
 
         {issue.photo && (
           <div className="relative">
             <img
-              src={`http://13.204.65.29:5006${issue.photo}`}
+              src={`${GATEWAY_URL}${issue.photo}`}
               alt="Issue"
               className="w-full h-48 object-cover rounded-md"
             />
-            <div className="absolute top-2 right-2">
+            <div className="absolute top-2 right-2 bg-black/50 rounded-full p-1">
               <Camera className="h-4 w-4 text-white" />
             </div>
           </div>
@@ -187,7 +198,6 @@ export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
         <Button
           variant="destructive"
           size="sm"
-          className="mt-2"
           onClick={() => handleDelete(issue._id)}
           disabled={deletingIds.includes(issue._id)}
         >
@@ -204,13 +214,14 @@ export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
     </Card>
   );
 
+  // ================= UI =================
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted p-6">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <h1 className="text-3xl font-bold">Dashboard</h1>
             <p className="text-muted-foreground">
               Report and track community issues
             </p>
@@ -221,7 +232,6 @@ export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
           </Button>
         </div>
 
-        {/* Alerts */}
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -234,7 +244,7 @@ export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
           </Alert>
         )}
 
-        {/* Report Issue Form */}
+        {/* Report Issue */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -242,75 +252,62 @@ export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
               Report New Issue
             </CardTitle>
             <CardDescription>
-              Help improve your community by reporting issues that need
-              attention
+              Help improve your community by reporting issues
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Title</Label>
+                <div>
+                  <Label>Title</Label>
                   <Input
-                    id="title"
-                    placeholder="Brief description of the issue"
                     value={form.title}
                     onChange={(e) =>
                       setForm({ ...form, title: e.target.value })
                     }
                     required
-                    disabled={submitting}
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="location">Location</Label>
+                <div>
+                  <Label>Location</Label>
                   <Input
-                    id="location"
-                    placeholder="Where is this issue located?"
                     value={form.location}
                     onChange={(e) =>
                       setForm({ ...form, location: e.target.value })
                     }
                     required
-                    disabled={submitting}
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+              <div>
+                <Label>Description</Label>
                 <Textarea
-                  id="description"
-                  placeholder="Provide detailed information about the issue"
+                  rows={4}
                   value={form.description}
                   onChange={(e) =>
                     setForm({ ...form, description: e.target.value })
                   }
                   required
-                  disabled={submitting}
-                  rows={4}
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="photo">Photo (optional)</Label>
+              <div>
+                <Label>Photo (optional)</Label>
                 <Input
-                  id="photo"
                   type="file"
                   accept="image/*"
                   onChange={(e) =>
-                    setForm({ ...form, photo: e.target.files?.[0] || null })
+                    setForm({
+                      ...form,
+                      photo: e.target.files?.[0] || null,
+                    })
                   }
-                  disabled={submitting}
                 />
               </div>
 
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="w-full md:w-auto"
-              >
+              <Button type="submit" disabled={submitting}>
                 {submitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
@@ -322,56 +319,22 @@ export default function UserDashboard({ token, onLogout }: UserDashboardProps) {
 
         <Separator />
 
-        {/* Pending Issues Section */}
-        <div>
-          <h2 className="text-2xl font-semibold mb-6 text-orange-600">
-            Pending Issues
-          </h2>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <span className="ml-2">Loading issues...</span>
-            </div>
-          ) : pendingIssues.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No pending issues.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {pendingIssues.map(renderIssueCard)}
-            </div>
-          )}
+        {/* Pending Issues */}
+        <h2 className="text-2xl font-semibold text-orange-600">
+          Pending Issues
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {pendingIssues.map(renderIssue)}
         </div>
 
         <Separator />
 
-        {/* Resolved Issues Section */}
-        <div>
-          <h2 className="text-2xl font-semibold mb-6 text-green-600">
-            Resolved Issues
-          </h2>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <span className="ml-2">Loading issues...</span>
-            </div>
-          ) : resolvedIssues.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No resolved issues.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {resolvedIssues.map(renderIssueCard)}
-            </div>
-          )}
+        {/* Resolved Issues */}
+        <h2 className="text-2xl font-semibold text-green-600">
+          Resolved Issues
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {resolvedIssues.map(renderIssue)}
         </div>
       </div>
     </div>

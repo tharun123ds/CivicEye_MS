@@ -29,6 +29,9 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
+// ✅ API Gateway (frontend → gateway only)
+const GATEWAY_URL = "http://localhost:3000";
+
 export default function AdminDashboard({
   token,
   onLogout,
@@ -39,13 +42,18 @@ export default function AdminDashboard({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
+  // ================= FETCH ALL ISSUES =================
   const fetchIssues = useCallback(async () => {
     setLoading(true);
     setError("");
+
     try {
-      const res = await fetch("http://13.204.65.29:5006/api/issues", {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`${GATEWAY_URL}/admin/issues`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
       const data = await res.json();
 
       if (res.ok) {
@@ -56,6 +64,7 @@ export default function AdminDashboard({
     } catch {
       setError("Server error while fetching issues");
     }
+
     setLoading(false);
   }, [token]);
 
@@ -63,17 +72,19 @@ export default function AdminDashboard({
     fetchIssues();
   }, [fetchIssues]);
 
-  const updateStatus = async (id: string, newStatus: string) => {
+  // ================= UPDATE ISSUE STATUS =================
+  const updateStatus = async (id: string, status: string) => {
     setUpdatingId(id);
     setError("");
+
     try {
-      const res = await fetch(`http://13.204.65.29:5006/api/issues/${id}`, {
+      const res = await fetch(`${GATEWAY_URL}/admin/issues/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status }),
       });
 
       if (!res.ok) {
@@ -85,16 +96,19 @@ export default function AdminDashboard({
     } catch {
       setError("Server error while updating status");
     }
+
     setUpdatingId(null);
   };
 
+  // ================= DELETE ISSUE =================
   const deleteIssue = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this issue?")) return;
 
     setDeletingId(id);
     setError("");
+
     try {
-      const res = await fetch(`http://13.204.65.29:5006/api/issues/${id}`, {
+      const res = await fetch(`${GATEWAY_URL}/admin/issues/${id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -107,53 +121,39 @@ export default function AdminDashboard({
       } else {
         await fetchIssues();
       }
-    } catch (e) {
-      console.log(e);
+    } catch {
       setError("Server error while deleting issue");
     }
+
     setDeletingId(null);
   };
 
+  // ================= HELPERS =================
   const getStatusVariant = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case "resolved":
-        return "default";
-      case "pending":
-        return "secondary";
-      default:
-        return "outline";
-    }
+    if (status?.toLowerCase() === "resolved") return "default";
+    if (status?.toLowerCase() === "pending") return "secondary";
+    return "outline";
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case "resolved":
-        return <CheckCircle className="h-4 w-4" />;
-      case "pending":
-        return <Clock className="h-4 w-4" />;
-      default:
-        return <Clock className="h-4 w-4" />;
-    }
-  };
+  const getStatusIcon = (status: string) =>
+    status?.toLowerCase() === "resolved" ? (
+      <CheckCircle className="h-4 w-4" />
+    ) : (
+      <Clock className="h-4 w-4" />
+    );
 
-  // Separate issues by status
-  const resolvedIssues = issues.filter(
-    (issue) => issue.status?.toLowerCase() === "resolved"
-  );
   const pendingIssues = issues.filter(
-    (issue) => issue.status?.toLowerCase() === "pending" || !issue.status
+    (i) => i.status?.toLowerCase() === "pending"
+  );
+  const resolvedIssues = issues.filter(
+    (i) => i.status?.toLowerCase() === "resolved"
   );
 
-  const stats = {
-    total: issues.length,
-    resolved: resolvedIssues.length,
-    pending: pendingIssues.length,
-  };
-
-  const renderIssueCard = (issue: Issue) => (
-    <Card key={issue._id} className="overflow-hidden relative z-10">
+  // ================= ISSUE CARD =================
+  const renderIssue = (issue: Issue) => (
+    <Card key={issue._id} className="overflow-hidden">
       <CardHeader>
-        <div className="flex items-start justify-between">
+        <div className="flex justify-between items-start">
           <CardTitle className="text-lg">{issue.title}</CardTitle>
           <Badge
             variant={getStatusVariant(issue.status)}
@@ -164,138 +164,86 @@ export default function AdminDashboard({
           </Badge>
         </div>
         <div className="flex items-center text-sm text-muted-foreground">
-          <MapPin className="h-4 w-4 mr-1" />
+          <MapPin className="mr-1 h-4 w-4" />
           {issue.location}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4 relative z-10">
+
+      <CardContent className="space-y-4">
         <p className="text-sm">{issue.description}</p>
 
         {issue.photo && (
-          <div className="relative z-0">
+          <div className="relative">
             <img
-              src={`http://13.204.65.29:5006${issue.photo}`}
+              src={`${GATEWAY_URL}${issue.photo}`}
               alt="Issue"
-              className="w-full h-48 object-cover rounded-md z-0"
+              className="w-full h-48 object-cover rounded-md"
             />
-            <div className="absolute top-2 right-2 bg-black/50 rounded-full p-1 z-20">
+            <div className="absolute top-2 right-2 bg-black/50 rounded-full p-1">
               <Camera className="h-4 w-4 text-white" />
             </div>
           </div>
         )}
 
-        <div className="flex gap-2 pt-2 z-10 relative">
+        <div className="flex gap-2">
           <Button
+            size="sm"
             onClick={() => updateStatus(issue._id, "Resolved")}
             disabled={updatingId === issue._id || deletingId === issue._id}
-            variant="default"
-            size="sm"
-            className="flex-1 cursor-pointer"
           >
-            {updatingId === issue._id ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCircle className="mr-2 h-4 w-4" />
-            )}
-            Mark Resolved
+            <CheckCircle className="mr-1 h-4 w-4" />
+            Resolve
           </Button>
 
           <Button
+            size="sm"
+            variant="secondary"
             onClick={() => updateStatus(issue._id, "Pending")}
             disabled={updatingId === issue._id || deletingId === issue._id}
-            variant="secondary"
-            size="sm"
-            className="flex-1 cursor-pointer"
           >
-            {updatingId === issue._id ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Clock className="mr-2 h-4 w-4" />
-            )}
-            Mark Pending
+            <Clock className="mr-1 h-4 w-4" />
+            Pending
           </Button>
 
           <Button
-            onClick={() => deleteIssue(issue._id)}
-            disabled={updatingId === issue._id || deletingId === issue._id}
-            variant="destructive"
             size="sm"
-            className="flex-1 cursor-pointer flex items-center justify-center gap-2"
+            variant="destructive"
+            onClick={() => deleteIssue(issue._id)}
+            disabled={deletingId === issue._id}
           >
             {deletingId === issue._id ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className="h-4 w-4" />
             )}
-            Delete
           </Button>
         </div>
       </CardContent>
     </Card>
   );
 
+  // ================= UI =================
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted p-6">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
             <Shield className="h-8 w-8 text-primary" />
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                Admin Dashboard
-              </h1>
+              <h1 className="text-3xl font-bold">Admin Dashboard</h1>
               <p className="text-muted-foreground">
                 Manage and resolve community issues
               </p>
             </div>
           </div>
+
           <Button variant="outline" onClick={onLogout}>
             <LogOut className="mr-2 h-4 w-4" />
             Logout
           </Button>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Issues
-              </CardTitle>
-              <div className="h-4 w-4 text-muted-foreground">📊</div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Resolved</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {stats.resolved}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
-              <Clock className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {stats.pending}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Error Alert */}
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -305,43 +253,27 @@ export default function AdminDashboard({
         <Separator />
 
         {/* Pending Issues */}
-        <div>
-          <h2 className="text-2xl font-semibold mb-4 text-orange-600">
-            Pending Issues
-          </h2>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <span className="ml-2">Loading issues...</span>
-            </div>
-          ) : pendingIssues.length === 0 ? (
-            <p className="text-muted-foreground">No pending issues.</p>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {pendingIssues.map(renderIssueCard)}
-            </div>
-          )}
-        </div>
+        <h2 className="text-2xl font-semibold text-orange-600">
+          Pending Issues
+        </h2>
+
+        {loading ? (
+          <Loader2 className="h-8 w-8 animate-spin" />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {pendingIssues.map(renderIssue)}
+          </div>
+        )}
 
         <Separator />
 
         {/* Resolved Issues */}
-        <div>
-          <h2 className="text-2xl font-semibold mb-4 text-green-600">
-            Resolved Issues
-          </h2>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <span className="ml-2">Loading issues...</span>
-            </div>
-          ) : resolvedIssues.length === 0 ? (
-            <p className="text-muted-foreground">No resolved issues.</p>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {resolvedIssues.map(renderIssueCard)}
-            </div>
-          )}
+        <h2 className="text-2xl font-semibold text-green-600">
+          Resolved Issues
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {resolvedIssues.map(renderIssue)}
         </div>
       </div>
     </div>
